@@ -1,0 +1,127 @@
+# load packages
+library(dplyr)
+library(ggplot2)
+library(WDI)
+library(tidyverse)
+library(ggsci)
+library(waffle)
+library(patchwork)
+library(ggmap)
+library(rgdal)
+library(maps)
+library(showtext)
+---------------------------Calculate the economic burden of neonatal disorders----------------------------------------------------
+#input data
+chara1_global <- read.csv("global daly number.csv",header=T)   
+g1 <- WDI(country =c( "XD","XM","XN","XT"),indicator = "NY.GDP.PCAP.KD",start = 1990,end = 2019) 
+g2 <- WDI(country =c( "Z4","Z7","ZQ","ZJ","XU","8S","ZG","1W"),indicator = "NY.GDP.PCAP.KD",start = 1990,end = 2019)
+# organize the [GDP] DATA
+wb_gdp <- merge(g1,g2,all=T) 
+wb_gdp$country[wb_gdp$country=='World']='Global' #Changed the data names to match the GBD format for easier merging.
+wb_gdp$country[wb_gdp$country=='East Asia & Pacific']='East Asia & Pacific - WB'
+wb_gdp$country[wb_gdp$country=='Europe & Central Asia']='Europe & Central Asia - WB'
+wb_gdp$country[wb_gdp$country=='Latin America & Caribbean']='Latin America & Caribbean - WB'
+wb_gdp$country[wb_gdp$country=='South Asia']='South Asia - WB'
+wb_gdp$country[wb_gdp$country=='High income']='World Bank High Income'
+wb_gdp$country[wb_gdp$country=='Low income']='World Bank Low Income'
+wb_gdp$country[wb_gdp$country=='Lower middle income']='World Bank Lower Middle Income'
+wb_gdp$country[wb_gdp$country=='Upper middle income']='World Bank Upper Middle Income'
+wb_gdp$country[wb_gdp$country=='Middle East & North Africa']='Middle East & North Africa - WB'
+wb_gdp$country[wb_gdp$country=='Sub-Saharan Africa']='Sub-Saharan Africa - WB'
+##[GBD-DALY]
+chara_1990 <- subset(chara1_global,chara1_global$year==1990 &
+                                   chara1_global$cause_id==380) 
+chara_1990 <- group_by(chara_1990,location_name)
+chara_1990 <- dplyr::summarise(chara_1990,val=sum(val),lower=sum(lower),upper=sum(upper))
+library(plyr)
+gdp_1990 <- subset(wb_gdp,wb_gdp$year==1990)
+chara_1990 <- merge(chara_1990,gdp_1990,all=T)
+#calculate
+chara_1990$us <- chara_1990$`GDP per capita (constant 2015 US$)`*chara_1990$val/1000000
+chara_1990$us_upper <- chara_1990$`GDP per capita (constant 2015 US$)`*chara_1990$upper/1000000
+chara_1990$us_lower <- chara_1990$`GDP per capita (constant 2015 US$)`*chara_1990$lower/1000000
+#output the results
+write.csv(x=chara_dalys,file = "Global DALYs change in 1990-2019.csv")
+---------------------------Calculate the economic burden attributable to different causes of Neonatal disorders----------------------------------------------------
+# Same as the last step, change the cause id
+#here are some examples of drawing plots
+global_1c <- ggplot(data=global_1cause,aes(x=year,y=us,group=cause_id,colour=cause_id))+
+             geom_line(size=0.8)+
+             geom_point()+
+             theme_light()
+global_1c <- global_1c+scale_y_continuous(breaks = c(0,10000,20000,30000,40000,50000,60000,70000))+
+          scale_x_continuous(breaks = c(1990,2000,2010,2019))+
+          labs(x="Year",y="Million Dollars(US$)")+
+          guides(colour=guide_legend(title = ' '))+
+          scale_color_manual(values = c(HD='#f6ea8c',NPB="#f26d5b",NE='#c03546',NS='#492540'))
+global_1c <- global_1c+theme(legend.text =element_text(size =6.6),legend.position =c(0.02,1.25),
+                  legend.justification = c(0.02,1.25),
+                  legend.key.size =unit(.2,"inches"),
+                  legend.background = element_rect(fill = "transparent"))
+global_2c <- ggplot(data=global_1cause,aes(x=year,y=us,group=cause_id,fill=cause_id))+
+  geom_area(alpha=0.9)+
+  theme_light()
+global_2c <- global_2c+scale_y_continuous(breaks = seq(0,120000,20000))+
+  scale_x_continuous(breaks = c(1990,2000,2010,2019))+
+  labs(x="Year",y="Million Dollars(US$)")+
+  guides(fill=guide_legend(title = ' '))
+global_2c <- global_2c+scale_fill_manual(values = c(HD='#f6ea8c',NPB="#f26d5b",NE='#c03546',NS='#492540'))
+global_2c <- global_2c+theme(legend.text =element_text(size =6.6),legend.position =c(0.02,1.25),
+                             legend.justification = c(0.02,1.25),
+                             legend.key.size =unit(.1,"inches"),
+                             legend.background = element_rect(fill = "transparent"))
+#map 
+##Changed the GDP data names to match the GBD format for easier merging.
+all_gdp <- WDI::WDI(country ="all",indicator = "NY.GDP.PCAP.KD",start = 1990,end = 2019)
+all_gdp$country <- as.character(all_gdp$country)
+all_gdp$country[all_gdp$country=='United States']='USA'
+all_gdp$country[all_gdp$country=='Russian Federation']='Russia'
+all_gdp$country[all_gdp$country=='United Kingdom']='UK'
+all_gdp$country[all_gdp$country=='Congo, Rep.']='Republic of Congo'
+all_gdp$country[all_gdp$country=='Iran, Islamic Rep.']='Iran'
+all_gdp$country[all_gdp$country=="Korea, Dem. Rep."]='North Korea'
+all_gdp$country[all_gdp$country=='Korea, Rep.']='South Korea'
+all_gdp$country[all_gdp$country=="Lao PDR"]='Laos'
+all_gdp$country[all_gdp$country=='Syrian Arab Republic']='Syria'
+all_gdp$country[all_gdp$country=='Bahamas, The']='Bahamas'
+all_gdp$country[all_gdp$country=='Czechia']='Czech Republic'
+all_gdp$country[all_gdp$country=='Congo, Dem. Rep.']='Democratic Republic of the Congo'
+all_gdp$country[all_gdp$country=='North Macedonia']='Macedonia'
+all_gdp$country[all_gdp$country=='Egypt, Arab Rep.']='Egypt'
+all_gdp$country[all_gdp$country=='Gambia, The']='Gambia'
+all_gdp$country[all_gdp$country=='Kyrgyz Republic']='Kyrgyzstan'
+all_gdp$country[all_gdp$country=='Micronesia, Fed. Sts.']='Micronesia (Federated States of)'
+all_gdp$country[all_gdp$country=='North Macedonia']='Macedonia'
+all_gdp$country[all_gdp$country=='Yemen, Rep.']='Yemen'
+all_gdp$country[all_gdp$country=='Venezuela, RB']='Venezuela'
+all_gdp$country[all_gdp$country=='Virgin Islands (U.S.)']='United States Virgin Islands'
+all_gdp$country[all_gdp$country=='Turkiye']='Turkey'
+all_gdp$country[all_gdp$country=='Slovak Republic']='Slovakia'
+all_gdp$country[all_gdp$country=='St. Vincent and the Grenadines']='Saint Vincent and the Grenadines'
+all_gdp$country[all_gdp$country=='St. Lucia']='Saint Lucia'
+all_gdp$country[all_gdp$country=='St. Kitts and Nevis']='Saint Kitts and Nevis'
+all_gdp$country[all_gdp$country=='West Bank and Gaza']='Palestine'
+TW<- WDI(country ="CN",indicator = "NY.GDP.PCAP.KD",start = 1990,end = 2019)
+TW <- rename(TW,c(NY.GDP.PCAP.KD="GDP per capita (constant 2015 US$)"))
+TW$country[TW$country=='China']='Taiwan'
+all_gdp <- rbind(TW,all_gdp,all=T)
+gdp_SH <- WDI(country =c("CI"),indicator = "NY.GDP.PCAP.KD",start = 1990,end = 2019)
+gdp_SH <- rename(gdp_SH,c(NY.GDP.PCAP.KD="GDP per capita (constant 2015 US$)"))
+gdp_SH $country[gdp_SH$country=="Cote d'Ivoire"]='Saint Helena'
+all_gdp <- rbind(gdp_SH,all_gdp,all = T)
+##PLOT
+worlddata <- map_data('world')
+mapB_1990_TAI <- full_join(worlddata,map_1B1990,by=c('region'='country'))
+p1 <- ggplot()
+mapB_1990_TAI <- mapB_1990_TAI%>%mutate(US=cut(us,breaks = c(0,100,500,1000,2000,12000,13000),
+                                               labels = c("0-100","100-500","500-1000","1000-2000","2000-12000",
+                                                          "12000-13000"),
+                                               include.lowest = T,right = T))
+mb1_1990 <-p1+geom_polygon(data=mapB_1990_TAI,
+                           aes(x=long,y=lat,group=group,fill=US),colour="black",size=.2)+
+  scale_fill_brewer(palette="YlOrRd")+
+  theme_void()+labs(x="",y="")+
+  guides(fill=guide_legend(title="Million Dollars(US$)"))+
+  theme(legend.position="right",legend.title = element_text(size=10,face = "bold"),
+        legend.key.size = unit(10,"pt"))
+mb1_1990
