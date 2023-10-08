@@ -1,0 +1,49 @@
+library(tseries)
+library(forecast)
+library(zoo)
+library(ggfortify)
+library(lubridate)
+library(tidyverse)
+library(scales)
+wbforecast11 <- read.csv("wbforecst1.csv",header = T)
+wb_gdp <- read.csv("wb_gdp.csv",header = T)
+#Global#
+G_forecast <- subset(wbforecast11,wbforecast11$country=="Global")
+G_time=ts(G_forecast$us,start = min(G_forecast$year),max(G_forecast$year))
+plot(G_time)
+ndiffs(G_time)
+G_dus <- diff(G_time,2)
+plot(G_dus)
+adf.test(G_dus)
+Gmodel=auto.arima(G_time,ic="aic",trace=TRUE)
+Gmodel
+tsdisplay(G_dus)
+G_fit <- arima(G_time,order=c(0,2,0))
+accuracy(G_fit)
+checkresiduals(G_fit)
+Box.test(G_fit$residuals,type="Ljung-Box")
+Gf_p1 <- forecast(G_fit,h=11,level=c(95)) 
+plot(Gf_p1)  
+lines(Gf_p1$fitted,col="green")
+lines(G_time,col="orange")
+Gffv <- data.frame(Gf_p1$fitted)
+G_fv <- data.frame(Gf_p1)
+G_fv$year <-2020:2030
+G1_time <- G_forecast
+G1_time <- cbind(G1_time,Gffv)
+G1_time <- merge(G1_time,G_fv,by="year",all=T)
+Greg3 <-fortify(G1_time) %>% as_tibble()
+str(Greg3)
+lastNonNAinus <- max(which(complete.cases(Greg3$us)))
+Greg3[lastNonNAinus,!(colnames(Greg3))%in% c("us","Gf_p1.fitted","year")] <- Greg3$us[lastNonNAinus]
+F1 <- ggplot(Greg3,aes(x=year) )+
+  geom_ribbon(aes(ymin=Lo.95,ymax=Hi.95,fill="Point.Forecast"),alpha=0.2)+
+  geom_line(aes(y=Point.Forecast,group=1,colour="Point.Forecast"),size=0.7)+
+  geom_line(aes(y=us,group=2,colour="us"),size=0.7)+
+  geom_line(aes(y=Gf_p1.fitted,group=3,colour="Gf_p1.fitted"),size=0.7)
+F1+scale_fill_npg()+scale_colour_npg()+
+  theme_light()+
+  scale_x_continuous(breaks = seq(1990,2030,5))+
+  scale_y_continuous(breaks=seq(0,200000,20000))+
+  labs(x="Year",y="Million Dollars(US$)")
+F1
